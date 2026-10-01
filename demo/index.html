@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meowdoku Solver — interactive demo</title>
+<style>
+  :root {
+    --ink: #1f2933;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+    --card: #ffffff;
+    --bg: #f6f5f2;
+    --accent: #2e9e5b;
+    --danger: #d64545;
+    font-size: 16px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+  }
+  header { max-width: 1080px; margin: 0 auto; padding: 28px 20px 8px; }
+  h1 { margin: 0 0 6px; font-size: 1.6rem; letter-spacing: -0.01em; }
+  .tagline { margin: 0; color: var(--muted); max-width: 720px; }
+  main {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 16px 20px 40px;
+    display: grid;
+    grid-template-columns: minmax(320px, 1fr) 340px;
+    gap: 20px;
+    align-items: start;
+  }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+  }
+  .step { display: block; font-size: 0.68rem; letter-spacing: 0.14em; color: var(--muted); margin-bottom: 2px; }
+  h2 { font-size: 1.02rem; margin: 2px 0 10px; }
+  .card-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+  .card-head select {
+    font-size: 0.95rem; padding: 6px 10px; border-radius: 8px;
+    border: 1px solid var(--line); background: #fff; color: var(--ink);
+  }
+  .board {
+    display: grid;
+    grid-template-columns: repeat(var(--n, 8), 1fr);
+    gap: 2px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 2px;
+    aspect-ratio: 1 / 1;
+    user-select: none;
+    touch-action: none;
+  }
+  .cell {
+    position: relative;
+    background: #fff;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(11px, 3.2vmin, 22px);
+    cursor: pointer;
+    transition: box-shadow 80ms linear, transform 60ms linear;
+  }
+  .cell .rid { position: absolute; top: 2px; left: 4px; font-size: 0.55rem; color: rgb(0 0 0 / 0.38); pointer-events: none; }
+  .cell.sel { box-shadow: inset 0 0 0 2px rgb(0 0 0 / 0.22); }
+  .cell.conflict { box-shadow: inset 0 0 0 3px var(--danger); }
+  .cell.solution { box-shadow: inset 0 0 0 3px var(--accent); }
+  .cell.hint { animation: pulse 0.9s ease-in-out infinite alternate; }
+  @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.06); } }
+  .board-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  button {
+    font: inherit;
+    font-size: 0.92rem;
+    padding: 9px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  button:hover { background: #f3f4f6; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { filter: brightness(1.05); }
+  button.active { outline: 2px solid var(--ink); outline-offset: 1px; }
+  .palette { display: flex; flex-wrap: wrap; gap: 8px; }
+  .swatch {
+    width: 42px; height: 42px; border-radius: 10px;
+    border: 2px solid transparent;
+    font-weight: 600; color: rgb(0 0 0 / 0.62);
+    cursor: pointer;
+  }
+  .swatch.active { border-color: var(--ink); }
+  .tools { display: grid; gap: 8px; margin-bottom: 10px; }
+  .tools button { text-align: left; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .status {
+    margin: 12px 0 0; padding: 10px 12px; border-radius: 10px;
+    background: #eef4ee; border: 1px solid #d8e6d8; color: #2f4a36;
+    font-size: 0.9rem; min-height: 44px; white-space: pre-line;
+  }
+  .promo { margin: 14px 2px 0; font-size: 0.88rem; color: var(--muted); }
+  .promo a { color: var(--accent); font-weight: 600; text-decoration: none; }
+  .promo a:hover { text-decoration: underline; }
+  .side { display: grid; gap: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🐱 Meowdoku Solver</h1>
+  <p class="tagline">
+    Paint the regions, drop your clues, and let the open-source core solve it.
+    One cat per row, column and region — and no two cats may touch (diagonals count).
+    Board sizes 6×6 – 12×12.
+  </p>
+</header>
+
+<main>
+  <section class="card">
+    <div class="card-head">
+      <div>
+        <span class="step">01 / DRAW</span>
+        <h2>Puzzle board</h2>
+      </div>
+      <label>
+        Board size
+        <select id="size-select">
+          <option>6</option><option>7</option><option selected>8</option>
+          <option>9</option><option>10</option><option>11</option><option>12</option>
+        </select>
+      </label>
+    </div>
+    <div id="board" class="board" aria-label="puzzle board"></div>
+    <div class="board-actions">
+      <button id="btn-check">Check board</button>
+      <button id="btn-hint">One hint</button>
+      <button id="btn-solve" class="primary">Find solution</button>
+    </div>
+  </section>
+
+  <div class="side">
+    <section class="card">
+      <span class="step">02 / COLOR</span>
+      <h2>Regions</h2>
+      <div id="palette" class="palette"></div>
+    </section>
+
+    <section class="card">
+      <span class="step">03 / MARK</span>
+      <h2>Clues &amp; tools</h2>
+      <div class="tools">
+        <button data-tool="paint" class="active">🎨 Paint region</button>
+        <button data-tool="cat">🐱 Given cat</button>
+        <button data-tool="cross">✕ Given X</button>
+        <button data-tool="eraser">⌫ Eraser</button>
+      </div>
+      <div class="row">
+        <button id="btn-generate">🎲 Generate puzzle</button>
+        <button id="btn-clear">Clear marks</button>
+      </div>
+    </section>
+
+    <p id="status" class="status" role="status"></p>
+
+    <p class="promo">
+      Full web version with hints, complete level answers and the screenshot solver:
+      <a href="https://meowdokuweb.com" target="_blank" rel="noopener">meowdokuweb.com</a>
+    </p>
+  </div>
+</main>
+
+<script type="module">
+import { generatePuzzle, solve, findHint, findConflicts, validateRegions } from '../src/index.js';
+
+const state = {
+  size: 8,
+  regions: [],       // number[][] — region ids
+  marks: [],         // number[][] — 0 empty | 1 cat | 2 cross
+  tool: 'paint',
+  selected: 0,
+  solution: null,    // Set of "r,c" when a solution is displayed
+  hint: null,        // [r, c]
+  conflicts: new Set(),
+};
+
+const $ = (id) => document.getElementById(id);
+const board = $('board');
+const palette = $('palette');
+const status = $('status');
+const sizeSelect = $('size-select');
+
+const tick = () => new Promise((r) => setTimeout(r, 16));
+const key = (r, c) => `${r},${c}`;
+const regionColor = (id) => `hsl(${(id * 360) / state.size + 15} 55% 84%)`;
+
+function setStatus(text) {
+  status.textContent = text;
+}
+
+function clearOverlays() {
+  state.solution = null;
+  state.hint = null;
+  state.conflicts = new Set();
+}
+
+// ---------------------------------------------------------------- rendering
+
+function buildBoard() {
+  board.style.setProperty('--n', state.size);
+  board.innerHTML = '';
+  for (let r = 0; r < state.size; r++) {
+    for (let c = 0; c < state.size; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.r = r;
+      cell.dataset.c = c;
+      cell.innerHTML = `<span class="rid"></span>`;
+      board.appendChild(cell);
+    }
+  }
+}
+
+function render() {
+  for (const cell of board.children) {
+    const r = +cell.dataset.r;
+    const c = +cell.dataset.c;
+    const region = state.regions[r]?.[c] ?? 0;
+    const mark = state.marks[r]?.[c] ?? 0;
+    const k = key(r, c);
+
+    cell.style.background = regionColor(region);
+    cell.querySelector('.rid').textContent = String(region + 1);
+    cell.classList.toggle('sel', state.tool === 'paint' && region === state.selected);
+    cell.classList.toggle('conflict', state.conflicts.has(k));
+    cell.classList.toggle('solution', !!state.solution?.has(k));
+    cell.classList.toggle('hint', state.hint?.[0] === r && state.hint?.[1] === c);
+
+    const glyph = mark === 1 ? '🐱' : mark === 2 ? '✕' : state.solution?.has(k) ? '🐱' : '';
+    const rid = cell.querySelector('.rid');
+    if (cell.childNodes.length > 1) cell.lastChild.remove();
+    if (glyph) cell.appendChild(document.createTextNode(glyph));
+    // keep the little region label first
+    cell.prepend(rid);
+  }
+}
+
+function buildPalette() {
+  palette.innerHTML = '';
+  for (let i = 0; i < state.size; i++) {
+    const b = document.createElement('button');
+    b.className = 'swatch';
+    b.style.background = regionColor(i);
+    b.textContent = String(i + 1);
+    b.dataset.region = i;
+    b.classList.toggle('active', i === state.selected);
+    b.addEventListener('click', () => {
+      state.selected = i;
+      state.tool = 'paint';
+      syncToolButtons();
+      render();
+    });
+    palette.appendChild(b);
+  }
+}
+
+function syncToolButtons() {
+  for (const b of document.querySelectorAll('.tools button')) {
+    b.classList.toggle('active', b.dataset.tool === state.tool);
+  }
+  for (const b of palette.children) {
+    b.classList.toggle('active', +b.dataset.region === state.selected && state.tool === 'paint');
+  }
+}
+
+// -------------------------------------------------------------- interaction
+
+let painting = false;
+
+function applyTool(cell) {
+  const r = +cell.dataset.r;
+  const c = +cell.dataset.c;
+  if (state.tool === 'paint') state.regions[r][c] = state.selected;
+  else if (state.tool === 'cat') state.marks[r][c] = state.marks[r][c] === 1 ? 0 : 1;
+  else if (state.tool === 'cross') state.marks[r][c] = state.marks[r][c] === 2 ? 0 : 2;
+  else state.marks[r][c] = 0;
+  clearOverlays();
+  render();
+}
+
+board.addEventListener('pointerdown', (e) => {
+  const cell = e.target.closest('.cell');
+  if (!cell) return;
+  painting = true;
+  applyTool(cell);
+});
+board.addEventListener('pointermove', (e) => {
+  if (!painting) return;
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const cell = el?.closest?.('.cell');
+  if (cell && board.contains(cell)) applyTool(cell);
+});
+window.addEventListener('pointerup', () => { painting = false; });
+
+for (const b of document.querySelectorAll('.tools button')) {
+  b.addEventListener('click', () => {
+    state.tool = b.dataset.tool;
+    syncToolButtons();
+    render();
+  });
+}
+
+// ------------------------------------------------------------------ commands
+
+function cluesFromMarks() {
+  const cats = [];
+  const crosses = [];
+  for (let r = 0; r < state.size; r++) {
+    for (let c = 0; c < state.size; c++) {
+      if (state.marks[r][c] === 1) cats.push([r, c]);
+      else if (state.marks[r][c] === 2) crosses.push([r, c]);
+    }
+  }
+  return { cats, crosses };
+}
+
+async function newPuzzle(size = state.size) {
+  state.size = size;
+  setStatus('Generating a unique puzzle…');
+  await tick();
+  const gen = generatePuzzle(size, { seed: (Math.random() * 2 ** 31) >>> 0, attempts: 200 });
+  state.regions = gen.puzzle.regions;
+  state.marks = Array.from({ length: size }, () => new Array(size).fill(0));
+  for (const [r, c] of gen.puzzle.cats ?? []) state.marks[r][c] = 1; // pre-filled clues
+  state.selected = Math.min(state.selected, size - 1);
+  clearOverlays();
+  buildBoard();
+  buildPalette();
+  syncToolButtons();
+  render();
+  const clueCount = gen.puzzle.cats?.length ?? 0;
+  const clueNote = clueCount
+    ? ` — ${clueCount} given cat clue${clueCount > 1 ? 's' : ''} already placed`
+    : '';
+  setStatus(`Generated ${size}×${size} puzzle with a unique solution${clueNote}. Paint regions, add clues, then hit “Find solution”.`);
+}
+
+$('btn-generate').addEventListener('click', () => newPuzzle());
+
+sizeSelect.addEventListener('change', () => newPuzzle(+sizeSelect.value));
+
+$('btn-clear').addEventListener('click', () => {
+  for (const row of state.marks) row.fill(0);
+  clearOverlays();
+  render();
+  setStatus('Marks cleared.');
+});
+
+$('btn-check').addEventListener('click', () => {
+  const { cats } = cluesFromMarks();
+  const conflicts = findConflicts(cats, state.regions);
+  state.conflicts = new Set(conflicts.flatMap((x) => [key(...x.a), key(...x.b)]));
+  clearSolutionAndHint();
+  render();
+  if (!cats.length) setStatus('No cats placed yet — nothing to check.');
+  else if (conflicts.length) {
+    setStatus(`⚠️ ${conflicts.length} conflict${conflicts.length > 1 ? 's' : ''}: ` +
+      conflicts.slice(0, 4).map((x) => `${x.kind} at R${x.a[0] + 1}C${x.a[1] + 1} ↔ R${x.b[0] + 1}C${x.b[1] + 1}`).join(', '));
+  } else if (cats.length === state.size) {
+    setStatus('✅ Complete and valid — this is a solution!');
+  } else {
+    setStatus(`No conflicts so far (${cats.length}/${state.size} cats placed).`);
+  }
+});
+
+$('btn-hint').addEventListener('click', async () => {
+  const { cats, crosses } = cluesFromMarks();
+  setStatus('Looking for a logically forced cell…');
+  await tick();
+  const puzzle = { size: state.size, regions: state.regions, cats, crosses };
+  const hint = findHint(puzzle, { exclude: cats, maxSolutions: 256 });
+  if (!hint) {
+    setStatus('No hint available — the current clues make the board unsolvable. Try “Check board”.');
+    return;
+  }
+  state.hint = hint.cell;
+  clearSolutionOnly();
+  render();
+  const [r, c] = hint.cell;
+  setStatus(
+    hint.certain
+      ? `💡 Hint: R${r + 1}C${c + 1} is a cat in every solution (checked ${hint.solutionsChecked}).`
+      : `💡 Example step: R${r + 1}C${c + 1} is a cat in one solution (board has multiple).`
+  );
+});
+
+$('btn-solve').addEventListener('click', async () => {
+  const regionCheck = validateRegions(state.regions, { requireConnected: false });
+  if (!regionCheck.ok) {
+    setStatus(`⚠️ Region map incomplete: ${regionCheck.errors[0]}. Paint all cells with the region palette first.`);
+    return;
+  }
+  const { cats, crosses } = cluesFromMarks();
+  setStatus('Solving…');
+  await tick();
+  let res;
+  try {
+    res = solve({ size: state.size, regions: state.regions, cats, crosses }, { limit: 2 });
+  } catch (err) {
+    setStatus(`⚠️ ${err.message}`);
+    return;
+  }
+  state.hint = null;
+  if (res.count === 0) {
+    clearSolutionOnly();
+    state.conflicts = new Set(cats.map(([r, c]) => key(r, c)));
+    render();
+    setStatus('❌ No solution with the current clues.');
+    return;
+  }
+  state.solution = new Set(res.solutions[0].cats.map(([r, c]) => key(r, c)));
+  state.conflicts = new Set();
+  render();
+  setStatus(
+    res.count === 1 && res.exact
+      ? `✅ Solved in ${res.ms} ms — unique solution (${res.nodes} search nodes).`
+      : `✅ Solved in ${res.ms} ms — showing the first of ${res.count}${res.truncated ? '+' : ''} solutions.`
+  );
+});
+
+function clearSolutionOnly() {
+  state.solution = null;
+}
+function clearSolutionAndHint() {
+  state.solution = null;
+  state.hint = null;
+}
+
+// --------------------------------------------------------------------- init
+
+newPuzzle(8);
+</script>
+</body>
+</html>

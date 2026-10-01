@@ -1,0 +1,45 @@
+{
+  "name": "meowdoku-solver",
+  "version": "1.0.0",
+  "description": "Fast, zero-dependency JavaScript solver for Meowdoku (Star Battle style) puzzles — one cat per row, column and region, no touching cats. Board sizes 6x6–12x12, given clues, uniqueness checking, hints, puzzle generation, CLI and browser demo.",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "bin": {
+    "meowdoku-solver": "./bin/cli.js"
+  },
+  "files": [
+    "src",
+    "bin",
+    "examples",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test",
+    "demo": "node scripts/serve.js",
+    "solve": "node bin/cli.js solve",
+    "verify": "node bin/cli.js verify",
+    "generate": "node bin/cli.js generate"
+  },
+  "keywords": [
+    "meowdoku",
+    "star-battle",
+    "queens",
+    "cat-sudoku",
+    "puzzle-solver",
+    "solver",
+    "sudoku",
+    "logic-puzzle",
+    "backtracking",
+    "puzzle-generator",
+    "browser",
+    "nodejs"
+  ],
+  "license": "MIT"
+}
